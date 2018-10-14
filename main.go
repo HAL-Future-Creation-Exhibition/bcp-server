@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/syota-ohtuka/bcp-server/controller"
+	"github.com/HAL-Future-Creation-Exhibition/bcp-server/controller"
 )
 
 func main() {
