@@ -17,6 +17,10 @@ type fileController struct {
 }
 
 func (f *fileController) Ls(c *gin.Context) {
+	if !f.alive() {
+		c.JSON(404, "ストレージが有効化されてません。")
+		return
+	}
 	path := c.DefaultQuery("path", "")
 
 	type Raw struct {
@@ -41,7 +45,7 @@ func (f *fileController) Ls(c *gin.Context) {
 		res.Raws = append(res.Raws, Raw{
 			info.Name(),
 			info.IsDir(),
-			f.Base + info.Name(),
+			path + info.Name(),
 		})
 	}
 
@@ -49,6 +53,10 @@ func (f *fileController) Ls(c *gin.Context) {
 }
 
 func (f *fileController) Download(c *gin.Context) {
+	if !f.alive() {
+		c.JSON(404, "ストレージが有効化されてません。")
+		return
+	}
 	req := struct {
 		Paths []string `binding:"required"`
 	}{}
