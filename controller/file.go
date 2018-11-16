@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os/exec"
 	"time"
 
@@ -24,9 +25,9 @@ func (f *fileController) Ls(c *gin.Context) {
 	path := c.DefaultQuery("path", "")
 
 	type Raw struct {
-		Path    string `json:"path"`
-		IsDir   bool   `json:"isDir"`
-		RefPath string `json:"refPath"`
+		CurrentPath string `json:"current_path"`
+		Name        string `json:"name"`
+		IsDir       bool   `json:"isDir"`
 	}
 
 	type Res struct {
@@ -37,19 +38,28 @@ func (f *fileController) Ls(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(404, gin.H{"message": "ディレクトリが存在しません。"})
+		return
 	}
 
 	var res Res
 	for _, info := range fis {
 		fmt.Println(info)
 		res.Raws = append(res.Raws, Raw{
-			info.Name(),
-			info.IsDir(),
-			path + info.Name(),
+			CurrentPath: path + "/",
+			Name:        info.Name(),
+			IsDir:       info.IsDir(),
 		})
 	}
 
 	c.JSON(200, res)
+}
+
+func (f *fileController) FileUpload(c *gin.Context) {
+
+}
+
+func (f *fileController) DirUpload(c *gin.Context) {
+
 }
 
 func (f *fileController) Download(c *gin.Context) {
@@ -58,9 +68,14 @@ func (f *fileController) Download(c *gin.Context) {
 		return
 	}
 	req := struct {
-		Paths []string `binding:"required"`
+		Paths []string
 	}{}
 	c.BindJSON(&req)
+	fmt.Println(req.Paths)
+	if len(req.Paths) == 0 {
+		c.JSON(http.StatusBadRequest, "ファイル、ディレクトリが指定されていません。")
+		return
+	}
 
 	header := c.Writer.Header()
 	header["Content-Type"] = []string{"application/octet-stream"}
