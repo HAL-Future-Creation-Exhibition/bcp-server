@@ -92,6 +92,10 @@ func (f *fileController) DeleteFile(c *gin.Context) {
 	}
 
 	c.BindJSON(&req)
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, "フォルダ名を指定してください。")
+		return
+	}
 	if err := os.Remove(workDir + req.Name); err != nil {
 		c.JSON(http.StatusBadRequest, err.Error())
 		return
@@ -100,16 +104,19 @@ func (f *fileController) DeleteFile(c *gin.Context) {
 
 func (f *fileController) DeleteDir(c *gin.Context) {
 	path := c.DefaultQuery("path", "")
-	if path == "" {
-		c.JSON(http.StatusBadRequest, "直下は削除できません。")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
 	}
-	workDir := f.Base + path + "/"
-
 	var req struct {
 		Name string
 	}
 
 	c.BindJSON(&req)
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, "フォルダ名を指定してください。")
+		return
+	}
 	if err := os.RemoveAll(workDir + req.Name); err != nil {
 		c.JSON(http.StatusBadRequest, err.Error())
 		return
@@ -181,6 +188,12 @@ func (f *fileController) Download(c *gin.Context) {
 		c.JSON(404, "ストレージが有効化されてません。")
 		return
 	}
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+
 	req := struct {
 		Paths []string
 	}{}
@@ -195,14 +208,14 @@ func (f *fileController) Download(c *gin.Context) {
 	header["Content-Type"] = []string{"application/octet-stream"}
 	if len(req.Paths) == 1 {
 		header["Content-Disposition"] = []string{"attachment; filename=" + req.Paths[0]}
-		c.File(f.Base + req.Paths[0])
+		c.File(workDir + req.Paths[0])
 		return
 	}
 
 	fileName := "bcp-download-" + time.Now().Format("2006-01-02") + ".zip"
 	output := "zip/" + fileName
 
-	util.File.TransZip(f.Base, output, req.Paths)
+	util.File.TransZip(workDir, output, req.Paths)
 
 	header["Content-Disposition"] = []string{"attachment; filename=" + fileName}
 	c.File(output)
