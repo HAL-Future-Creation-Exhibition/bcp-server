@@ -3,7 +3,10 @@ package controller
 import (
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/HAL-Future-Creation-Exhibition/bcp-server/util"
@@ -22,34 +25,162 @@ func (f *fileController) Ls(c *gin.Context) {
 		return
 	}
 	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
 
 	type Raw struct {
-		Path    string `json:"path"`
-		IsDir   bool   `json:"isDir"`
-		RefPath string `json:"refPath"`
+		CurrentPath string `json:"current_path"`
+		Name        string `json:"name"`
+		IsDir       bool   `json:"isDir"`
 	}
 
 	type Res struct {
 		Raws []Raw `json:"raws"`
 	}
 
-	fis, err := ioutil.ReadDir(f.Base + path)
+	fis, err := ioutil.ReadDir(workDir)
 
 	if err != nil {
 		c.JSON(404, gin.H{"message": "ディレクトリが存在しません。"})
+		return
 	}
 
 	var res Res
 	for _, info := range fis {
 		fmt.Println(info)
 		res.Raws = append(res.Raws, Raw{
-			info.Name(),
-			info.IsDir(),
-			path + info.Name(),
+			CurrentPath: path + "/",
+			Name:        info.Name(),
+			IsDir:       info.IsDir(),
 		})
 	}
 
 	c.JSON(200, res)
+}
+
+func (f *fileController) CreateDir(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+
+	var req struct {
+		Name string
+	}
+	c.BindJSON(&req)
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, "フォルダ名が指定されていません。")
+		return
+	}
+	if err := os.MkdirAll(workDir+req.Name, 0777); err != nil {
+		c.JSON(http.StatusBadRequest, "ディレクトリ作成に失敗しました。")
+		return
+	}
+}
+
+func (f *fileController) DeleteFile(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+	var req struct {
+		Name string
+	}
+
+	c.BindJSON(&req)
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, "フォルダ名を指定してください。")
+		return
+	}
+	if err := os.Remove(workDir + req.Name); err != nil {
+		c.JSON(http.StatusBadRequest, err.Error())
+		return
+	}
+}
+
+func (f *fileController) DeleteDir(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+	var req struct {
+		Name string
+	}
+
+	c.BindJSON(&req)
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, "フォルダ名を指定してください。")
+		return
+	}
+	if err := os.RemoveAll(workDir + req.Name); err != nil {
+		c.JSON(http.StatusBadRequest, err.Error())
+		return
+	}
+}
+
+func (f *fileController) FileUpload(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("get form err: %s", err.Error()))
+		return
+	}
+
+	if err := c.SaveUploadedFile(file, workDir+file.Filename); err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("upload file err: %s", err.Error()))
+		return
+	}
+}
+
+func (f *fileController) DirUpload(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("get form err: %s", err.Error()))
+		return
+	}
+	files := form.File["files"]
+	if err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("get form err: %s", err.Error()))
+		return
+	}
+	for key, name := range form.Value["filePath"] {
+		names := strings.Split(name, "/")
+		fmt.Println(names)
+		current := ""
+		p := names[:len(names)-1]
+		fmt.Println(p)
+		for _, path := range p {
+			current += path
+			fmt.Println(current)
+			if _, err := os.Stat(workDir + current); os.IsNotExist(err) {
+				if err := os.Mkdir(workDir+current, 0777); err != nil {
+					fmt.Println(err)
+				}
+			}
+			current += "/"
+		}
+
+		if err := c.SaveUploadedFile(files[key], workDir+name); err != nil {
+			c.String(http.StatusBadRequest, fmt.Sprintf("upload file err: %s", err.Error()))
+			return
+		}
+	}
 }
 
 func (f *fileController) Download(c *gin.Context) {
@@ -57,23 +188,34 @@ func (f *fileController) Download(c *gin.Context) {
 		c.JSON(404, "ストレージが有効化されてません。")
 		return
 	}
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+
 	req := struct {
-		Paths []string `binding:"required"`
+		Paths []string
 	}{}
 	c.BindJSON(&req)
+	fmt.Println(req.Paths)
+	if len(req.Paths) == 0 {
+		c.JSON(http.StatusBadRequest, "ファイル、ディレクトリが指定されていません。")
+		return
+	}
 
 	header := c.Writer.Header()
 	header["Content-Type"] = []string{"application/octet-stream"}
 	if len(req.Paths) == 1 {
 		header["Content-Disposition"] = []string{"attachment; filename=" + req.Paths[0]}
-		c.File(f.Base + req.Paths[0])
+		c.File(workDir + req.Paths[0])
 		return
 	}
 
 	fileName := "bcp-download-" + time.Now().Format("2006-01-02") + ".zip"
 	output := "zip/" + fileName
 
-	util.File.TransZip(f.Base, output, req.Paths)
+	util.File.TransZip(workDir, output, req.Paths)
 
 	header["Content-Disposition"] = []string{"attachment; filename=" + fileName}
 	c.File(output)
