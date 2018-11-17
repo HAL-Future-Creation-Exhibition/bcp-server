@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/HAL-Future-Creation-Exhibition/bcp-server/util"
@@ -23,6 +25,10 @@ func (f *fileController) Ls(c *gin.Context) {
 		return
 	}
 	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
 
 	type Raw struct {
 		CurrentPath string `json:"current_path"`
@@ -34,7 +40,7 @@ func (f *fileController) Ls(c *gin.Context) {
 		Raws []Raw `json:"raws"`
 	}
 
-	fis, err := ioutil.ReadDir(f.Base + path)
+	fis, err := ioutil.ReadDir(workDir)
 
 	if err != nil {
 		c.JSON(404, gin.H{"message": "ディレクトリが存在しません。"})
@@ -54,12 +60,120 @@ func (f *fileController) Ls(c *gin.Context) {
 	c.JSON(200, res)
 }
 
-func (f *fileController) FileUpload(c *gin.Context) {
+func (f *fileController) CreateDir(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
 
+	var req struct {
+		Name string
+	}
+	c.BindJSON(&req)
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, "フォルダ名が指定されていません。")
+		return
+	}
+	if err := os.MkdirAll(workDir+req.Name, 0777); err != nil {
+		c.JSON(http.StatusBadRequest, "ディレクトリ作成に失敗しました。")
+		return
+	}
+}
+
+func (f *fileController) DeleteFile(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+	var req struct {
+		Name string
+	}
+
+	c.BindJSON(&req)
+	if err := os.Remove(workDir + req.Name); err != nil {
+		c.JSON(http.StatusBadRequest, err.Error())
+		return
+	}
+}
+
+func (f *fileController) DeleteDir(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	if path == "" {
+		c.JSON(http.StatusBadRequest, "直下は削除できません。")
+	}
+	workDir := f.Base + path + "/"
+
+	var req struct {
+		Name string
+	}
+
+	c.BindJSON(&req)
+	if err := os.RemoveAll(workDir + req.Name); err != nil {
+		c.JSON(http.StatusBadRequest, err.Error())
+		return
+	}
+}
+
+func (f *fileController) FileUpload(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("get form err: %s", err.Error()))
+		return
+	}
+
+	if err := c.SaveUploadedFile(file, workDir+file.Filename); err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("upload file err: %s", err.Error()))
+		return
+	}
 }
 
 func (f *fileController) DirUpload(c *gin.Context) {
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
 
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("get form err: %s", err.Error()))
+		return
+	}
+	files := form.File["files"]
+	if err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("get form err: %s", err.Error()))
+		return
+	}
+	for key, name := range form.Value["filePath"] {
+		names := strings.Split(name, "/")
+		fmt.Println(names)
+		current := ""
+		p := names[:len(names)-1]
+		fmt.Println(p)
+		for _, path := range p {
+			current += path
+			fmt.Println(current)
+			if _, err := os.Stat(workDir + current); os.IsNotExist(err) {
+				if err := os.Mkdir(workDir+current, 0777); err != nil {
+					fmt.Println(err)
+				}
+			}
+			current += "/"
+		}
+
+		if err := c.SaveUploadedFile(files[key], workDir+name); err != nil {
+			c.String(http.StatusBadRequest, fmt.Sprintf("upload file err: %s", err.Error()))
+			return
+		}
+	}
 }
 
 func (f *fileController) Download(c *gin.Context) {
