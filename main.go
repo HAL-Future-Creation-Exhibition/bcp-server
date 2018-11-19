@@ -23,7 +23,8 @@ func main() {
 	r.GET("/file/down", controller.File.Down)
 
 	r.GET("/file", controller.File.Ls)
-	r.POST("/download", controller.File.Download)
+	r.POST("/download/file", controller.File.FileDownload)
+	r.POST("/download/dir", controller.File.DirDownload)
 	r.POST("/upload/file", controller.File.FileUpload)
 	r.POST("/upload/dir", controller.File.DirUpload)
 	r.POST("/create/dir", controller.File.CreateDir)

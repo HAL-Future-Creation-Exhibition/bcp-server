@@ -176,7 +176,7 @@ func (f *fileController) DirUpload(c *gin.Context) {
 	}
 }
 
-func (f *fileController) Download(c *gin.Context) {
+func (f *fileController) FileDownload(c *gin.Context) {
 	if !f.alive() {
 		c.JSON(404, "ストレージが有効化されてません。")
 		return
@@ -199,18 +199,37 @@ func (f *fileController) Download(c *gin.Context) {
 
 	header := c.Writer.Header()
 	header["Content-Type"] = []string{"application/octet-stream"}
-	if len(req.Paths) == 1 {
-		//header["Content-Transfer-Encoding"] = []string{"binary"}
-		header["Content-Disposition"] = []string{"attachment; filename=" + req.Paths[0]}
-		c.File(workDir + req.Paths[0])
+	header["Content-Disposition"] = []string{"attachment; filename=" + req.Paths[0]}
+	c.File(workDir + req.Paths[0])
+}
+
+func (f *fileController) DirDownload(c *gin.Context) {
+	if !f.alive() {
+		c.JSON(404, "ストレージが有効化されてません。")
+		return
+	}
+	path := c.DefaultQuery("path", "")
+	workDir := f.Base
+	if path != "" {
+		workDir += path + "/"
+	}
+
+	req := struct {
+		Paths []string
+	}{}
+	c.BindJSON(&req)
+	fmt.Println(req.Paths)
+	if len(req.Paths) == 0 {
+		c.JSON(http.StatusBadRequest, "ファイル、ディレクトリが指定されていません。")
 		return
 	}
 
+	header := c.Writer.Header()
+	header["Content-Type"] = []string{"application/octet-stream"}
 	fileName := "bcp-download-" + time.Now().Format("2006-01-02") + ".zip"
+
 	output := "zip/" + fileName
-
 	util.File.TransZip(workDir, output, req.Paths)
-
 	header["Content-Disposition"] = []string{"attachment; filename=" + fileName}
 	c.File(output)
 }
