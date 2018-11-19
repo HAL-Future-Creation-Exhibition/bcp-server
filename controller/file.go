@@ -207,6 +207,7 @@ func (f *fileController) Download(c *gin.Context) {
 	header := c.Writer.Header()
 	header["Content-Type"] = []string{"application/octet-stream"}
 	if len(req.Paths) == 1 {
+		header["Content-Transfer-Encoding"] = []string{"binary"}
 		header["Content-Disposition"] = []string{"attachment; filename=" + req.Paths[0]}
 		c.File(workDir + req.Paths[0])
 		return
