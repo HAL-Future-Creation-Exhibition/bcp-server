@@ -11,6 +11,8 @@ import (
 
 	"github.com/HAL-Future-Creation-Exhibition/bcp-server/util"
 	"github.com/gin-gonic/gin"
+	"github.com/HAL-Future-Creation-Exhibition/bcp-server/model"
+	"sort"
 )
 
 var File = fileController{"./docker/file/html/tmp/"}
@@ -30,16 +32,6 @@ func (f *fileController) Ls(c *gin.Context) {
 		workDir += path + "/"
 	}
 
-	type Raw struct {
-		CurrentPath string `json:"current_path"`
-		Name        string `json:"name"`
-		IsDir       bool   `json:"isDir"`
-	}
-
-	type Res struct {
-		Raws []Raw `json:"raws"`
-	}
-
 	fis, err := ioutil.ReadDir(workDir)
 
 	if err != nil {
@@ -47,17 +39,18 @@ func (f *fileController) Ls(c *gin.Context) {
 		return
 	}
 
-	var res Res
+	var res model.Rows
 	for _, info := range fis {
 		fmt.Println(info)
-		res.Raws = append(res.Raws, Raw{
+		res = append(res, model.Row{
 			CurrentPath: path + "/",
 			Name:        info.Name(),
 			IsDir:       info.IsDir(),
+			UpdateTime:  info.ModTime(),
 		})
 	}
-
-	c.JSON(200, res)
+	sort.Sort(res)
+	c.JSON(200, gin.H{"rows": res})
 }
 
 func (f *fileController) CreateDir(c *gin.Context) {
@@ -207,7 +200,7 @@ func (f *fileController) Download(c *gin.Context) {
 	header := c.Writer.Header()
 	header["Content-Type"] = []string{"application/octet-stream"}
 	if len(req.Paths) == 1 {
-		header["Content-Transfer-Encoding"] = []string{"binary"}
+		//header["Content-Transfer-Encoding"] = []string{"binary"}
 		header["Content-Disposition"] = []string{"attachment; filename=" + req.Paths[0]}
 		c.File(workDir + req.Paths[0])
 		return
