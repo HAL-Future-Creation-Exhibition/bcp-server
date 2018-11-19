@@ -93,7 +93,7 @@ func (f *fileController) DeleteFile(c *gin.Context) {
 
 	c.BindJSON(&req)
 	if req.Name == "" {
-		c.JSON(http.StatusBadRequest, "フォルダ名を指定してください。")
+		c.JSON(http.StatusBadRequest, "ファイル名を指定してください。")
 		return
 	}
 	if err := os.Remove(workDir + req.Name); err != nil {
