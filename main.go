@@ -11,9 +11,11 @@ func main() {
 	r := gin.Default()
 	// web
 	r.Use(cors)
+	r.Static("/web/public", "./docker/web/html")
 	r.GET("/web/alive", controller.Web.Alive)
 	r.GET("/web/up", controller.Web.Up)
 	r.GET("/web/down", controller.Web.Down)
+	r.POST("/web/upload", controller.Web.Upload)
 
 	// file
 	r.GET("/file/alive", controller.File.Alive)
