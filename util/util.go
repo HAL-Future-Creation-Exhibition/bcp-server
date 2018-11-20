@@ -33,7 +33,6 @@ func (f *fileUtil) ZipAddDir(w *zip.Writer, workDir, path string) {
 	}
 	for _, fi := range fis {
 		if fi.IsDir() {
-			//new := jun + "/" +  hoge
 			newWorkDir := path + "/" + fi.Name()
 			fmt.Println("Recursing and Adding SubDir: " + fi.Name())
 			fmt.Println("Recursing and Adding SubDir: " + newWorkDir)

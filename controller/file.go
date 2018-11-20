@@ -239,8 +239,6 @@ func (f *fileController) DirDownload(c *gin.Context) {
 	defer outFile.Close()
 
 	w := zip.NewWriter(outFile)
-	//workDir := ./docker/file/html/tmp/
-	//req.DirName := jun
 	util.File.ZipAddDir(w, workDir, req.DirName)
 
 	err = w.Close()
