@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"archive/zip"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -9,10 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"sort"
+
+	"github.com/HAL-Future-Creation-Exhibition/bcp-server/model"
 	"github.com/HAL-Future-Creation-Exhibition/bcp-server/util"
 	"github.com/gin-gonic/gin"
-	"github.com/HAL-Future-Creation-Exhibition/bcp-server/model"
-	"sort"
 )
 
 var File = fileController{"./docker/file/html/tmp/"}
@@ -215,11 +217,11 @@ func (f *fileController) DirDownload(c *gin.Context) {
 	}
 
 	req := struct {
-		Paths []string
+		DirName string
 	}{}
 	c.BindJSON(&req)
-	fmt.Println(req.Paths)
-	if len(req.Paths) == 0 {
+	fmt.Println(req.DirName)
+	if req.DirName == "" {
 		c.JSON(http.StatusBadRequest, "ファイル、ディレクトリが指定されていません。")
 		return
 	}
@@ -229,7 +231,22 @@ func (f *fileController) DirDownload(c *gin.Context) {
 	fileName := "bcp-download-" + time.Now().Format("2006-01-02") + ".zip"
 
 	output := "zip/" + fileName
-	util.File.TransZip(workDir, output, req.Paths)
+
+	outFile, err := os.Create(output)
+	if err != nil {
+		panic(err)
+	}
+	defer outFile.Close()
+
+	w := zip.NewWriter(outFile)
+	//workDir := ./docker/file/html/tmp/
+	//req.DirName := jun
+	util.File.ZipAddDir(w, workDir, req.DirName)
+
+	err = w.Close()
+	if err != nil {
+		panic(err)
+	}
 	header["Content-Disposition"] = []string{"attachment; filename=" + fileName}
 	c.File(output)
 }
